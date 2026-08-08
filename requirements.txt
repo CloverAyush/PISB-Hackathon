@@ -1,0 +1,11 @@
+gradio==5.38.0
+pandas==2.2.2
+numpy==2.0.2
+scikit-learn==1.6.1
+imbalanced-learn==0.14.2
+shap==0.52.0
+matplotlib==3.10.0
+joblib==1.5.3
+seaborn==0.13.2
+requests==2.34.2
+IPython==9.16.1
