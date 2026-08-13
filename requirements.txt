@@ -9,3 +9,5 @@ joblib==1.5.3
 seaborn==0.13.2
 requests==2.34.2
 IPython==9.16.1
+igraph==1.0.0
+pyarrow==21.0.0

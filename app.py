@@ -8,10 +8,15 @@ import pandas as pd
 import numpy as np
 import gradio as gr
 import shap
+import pickle
+import igraph as ig
 
 import matplotlib.pyplot as plt
 
 from IPython.display import display
+
+from transaction_lookup_layer import lookup_transaction, transaction_lookup
+from sender_behavior import analyze_sender_behavior
 
 # ==========================================================
 # Load Production Model
@@ -19,19 +24,21 @@ from IPython.display import display
 
 print("Loading production assets...")
 
-model = joblib.load("models/fraud_model.joblib")
-encoder = joblib.load("models/label_encoder.joblib")
-feature_columns = joblib.load("models/feature_columns.joblib")
+model = joblib.load("models_all/fraud_model_g.joblib")
+encoder = joblib.load("models_all/label_encoder_g.joblib")
+feature_columns = joblib.load("models_all/feature_column_g.joblib")
 
 print("✅ Random Forest loaded")
 print("✅ Label Encoder loaded")
 print("✅ Feature Columns loaded")
 
-print(encoder.classes_)
-for i, cls in enumerate(encoder.classes_):
-    print(i, "->", cls)
-
 print(f"\nModel expects {len(feature_columns)} features.")
+
+df_lookup = transaction_lookup
+
+print("Lookup loaded:", df_lookup.shape)
+print(df_lookup.head())
+print(df_lookup.columns.tolist())
 
 # ==========================================================
 # Initialize SHAP Explainer
@@ -54,7 +61,8 @@ def analyze_transaction(
     oldbalanceOrg,
     newbalanceOrig,
     oldbalanceDest,
-    newbalanceDest
+    newbalanceDest,
+    raw_transaction=None
 ):
     """
     Performs complete transaction analysis.
@@ -70,8 +78,12 @@ def analyze_transaction(
     # Feature Engineering
     # Must match training exactly
     # -----------------------------
-    errorBalanceOrig = oldbalanceOrg - amount - newbalanceOrig
+    errorBalanceOrig = newbalanceOrig + amount - oldbalanceOrg
     errorBalanceDest = oldbalanceDest + amount - newbalanceDest
+    dest_pagerank = 0.0
+
+    if raw_transaction is not None:
+        dest_pagerank = raw_transaction["dest_pagerank"]
 
     # -----------------------------
     # Build Input DataFrame
@@ -85,7 +97,8 @@ def analyze_transaction(
         "oldbalanceDest": oldbalanceDest,
         "newbalanceDest": newbalanceDest,
         "errorBalanceOrig": errorBalanceOrig,
-        "errorBalanceDest": errorBalanceDest
+        "errorBalanceDest": errorBalanceDest,
+        "dest_pagerank": dest_pagerank
     }])
 
     # Ensure correct feature order
@@ -122,10 +135,29 @@ def analyze_transaction(
         "probability": float(probability),
         "risk_level": risk_level,
         "input_df": input_df,
-        "shap": explanation
+        "shap": explanation,
+        "raw_transaction": raw_transaction
     }
 
-    # ==========================================================
+
+def analyze_transaction_from_lookup(transaction_id):
+    raw_transaction = lookup_transaction(transaction_id)
+
+    if raw_transaction is None:
+        return None
+
+    return analyze_transaction(
+        raw_transaction["step"],
+        raw_transaction["type"],
+        raw_transaction["amount"],
+        raw_transaction["oldbalanceOrg"],
+        raw_transaction["newbalanceOrig"],
+        raw_transaction["oldbalanceDest"],
+        raw_transaction["newbalanceDest"],
+        raw_transaction=raw_transaction
+    )
+
+   # ==========================================================
 # CELL: Rank SHAP Features
 # ==========================================================
 
@@ -155,7 +187,8 @@ def rank_shap_features(analysis, top_k=3):
             "feature": feature,
             "value": feature_values[feature],
             "shap": float(shap_value),
-            "abs_shap": abs(float(shap_value))
+            "abs_shap": abs(float(shap_value)),
+            "raw_transaction": analysis.get("raw_transaction")
         })
 
     ranked.sort(
@@ -307,17 +340,22 @@ def interpret_transaction_type(feature_info):
     Interpret the transaction type.
     """
 
-    transaction_type = feature_info["value"]
+    raw_transaction = feature_info.get("raw_transaction")
+    transaction_type = (
+        raw_transaction["type"]
+        if raw_transaction is not None
+        else feature_info["value"]
+    )
 
     observation = {}
 
     observation["title"] = "Transaction Type"
 
-    if transaction_type == 1:
+    if transaction_type == "TRANSFER" or transaction_type == 1:
 
         description = "The transaction is a TRANSFER."
 
-    elif transaction_type == 0:
+    elif transaction_type == "CASH_OUT" or transaction_type == 0:
 
         description = "The transaction is a CASH_OUT."
 
@@ -419,28 +457,113 @@ def generate_explanation(analysis):
 import matplotlib.pyplot as plt
 import shap
 
-def gradio_predict(
-    step,
-    transaction_type,
-    amount,
-    oldbalanceOrg,
-    newbalanceOrig,
-    oldbalanceDest,
-    newbalanceDest
-):
+def _format_money(value):
+    if value is None:
+        return "Insufficient historical data"
+
+    return f"{float(value):,.2f}"
+
+
+def _format_ratio(value):
+    if value is None:
+        return "Insufficient historical data"
+
+    return f"{float(value):.2f}x"
+
+
+def _format_amount_deviation_card(behavior):
+    amount_deviation = behavior["amount_deviation"]
+    status = amount_deviation["status"]
+    status_text = (
+        "Insufficient historical data"
+        if status in {"no_prior_transactions", "zero_historical_median"}
+        else status.replace("_", " ").title()
+    )
+
+    return f"""
+### Amount Deviation
+
+**Current transaction amount:** {_format_money(amount_deviation["current_amount"])}
+
+**Historical median amount:** {_format_money(amount_deviation["historical_median"])}
+
+**Deviation ratio:** {_format_ratio(amount_deviation["ratio"])}
+
+**Status:** {status_text}
+"""
+
+
+def _format_recent_frequency_card(behavior):
+    recent_frequency = behavior["recent_frequency"]
+
+    return f"""
+### Recent Transaction Frequency
+
+**Recent activity window:** {recent_frequency["window"]} steps
+
+**Transactions in window:** {recent_frequency["transaction_count"]}
+
+**Status:** {recent_frequency["status"].replace("_", " ").title()}
+"""
+
+
+def _format_behavior_summary(behavior):
+    return "\n".join(
+        f"- {line}"
+        for line in behavior["summary"]
+    )
+
+
+def _empty_plot():
+    plt.close("all")
+    return None
+
+
+def gradio_predict(transaction_id):
 
     # -------------------------------------------------
-    # Run AI inference
+    # Lookup transaction and run AI inference
     # -------------------------------------------------
-    analysis = analyze_transaction(
-        step,
-        transaction_type,
-        amount,
-        oldbalanceOrg,
-        newbalanceOrig,
-        oldbalanceDest,
-        newbalanceDest
-    )
+    raw_transaction = lookup_transaction(transaction_id)
+
+    if raw_transaction is None:
+        message = "Transaction ID not found. Please enter a valid transaction ID."
+        return (
+            message,
+            "",
+            "",
+            "",
+            message,
+            _empty_plot(),
+            "",
+            "",
+            "",
+        )
+
+    try:
+        analysis = analyze_transaction(
+            raw_transaction["step"],
+            raw_transaction["type"],
+            raw_transaction["amount"],
+            raw_transaction["oldbalanceOrg"],
+            raw_transaction["newbalanceOrig"],
+            raw_transaction["oldbalanceDest"],
+            raw_transaction["newbalanceDest"],
+            raw_transaction=raw_transaction
+        )
+    except Exception as exc:
+        message = f"Unable to analyze this transaction: {exc}"
+        return (
+            message,
+            "",
+            "",
+            "",
+            message,
+            _empty_plot(),
+            "",
+            "",
+            "",
+        )
 
     # -------------------------------------------------
     # Prediction
@@ -458,6 +581,8 @@ def gradio_predict(
     # AI Investigation Report
     # -------------------------------------------------
     explanation = generate_explanation(analysis)
+
+    behavior = analyze_sender_behavior(raw_transaction)
 
     # -------------------------------------------------
     # SHAP Waterfall Plot
@@ -483,7 +608,10 @@ def gradio_predict(
         analysis["risk_level"],
         action,
         explanation,
-        fig
+        fig,
+        _format_amount_deviation_card(behavior),
+        _format_recent_frequency_card(behavior),
+        _format_behavior_summary(behavior)
     )
 
     # ==========================================================
@@ -520,47 +648,15 @@ with gr.Blocks(
                 # ------------------------------------------
                 with gr.Column(scale=1):
 
-                    gr.Markdown("## 📋 Transaction Information")
+                    gr.Markdown("## Transaction Investigation")
 
-                    step = gr.Number(
-                        label="Transaction Time (Simulation Hour)",
-                        value=1,
-                        precision=0
-                    )
-
-                    transaction_type = gr.Dropdown(
-                        choices=["TRANSFER", "CASH_OUT"],
-                        value="TRANSFER",
-                        label="Transaction Type"
-                    )
-
-                    amount = gr.Number(
-                        label="Transaction Amount",
-                        value=1000
-                    )
-
-                    oldbalanceOrg = gr.Number(
-                        label="Sender Balance (Before)",
-                        value=10000
-                    )
-
-                    newbalanceOrig = gr.Number(
-                        label="Sender Balance (After)",
-                        value=9000
-                    )
-
-                    oldbalanceDest = gr.Number(
-                        label="Receiver Balance (Before)",
-                        value=0
-                    )
-
-                    newbalanceDest = gr.Number(
-                        label="Receiver Balance (After)",
-                        value=1000
+                    transaction_id_input = gr.Textbox(
+                        label="Transaction ID",
+                        placeholder="TX00000001"
                     )
 
                     analyze_btn = gr.Button(
-                        "🔍 Analyze Transaction",
+                        "Analyze Transaction",
                         variant="primary",
                         size="lg"
                     )
@@ -570,7 +666,7 @@ with gr.Blocks(
                 # ------------------------------------------
                 with gr.Column(scale=1):
 
-                    gr.Markdown("## 📊 Analysis Results")
+                    gr.Markdown("## Risk Assessment")
 
                     prediction_output = gr.Textbox(
                         label="Prediction",
@@ -592,15 +688,34 @@ with gr.Blocks(
                         interactive=False
                     )
 
+                    gr.Markdown("## Why was this transaction flagged?")
+
                     explanation_output = gr.Textbox(
                         label="AI Investigation Summary",
                         lines=7,
                         interactive=False
                     )
 
+                    gr.Markdown("## SHAP Explanation")
+
                     shap_output = gr.Plot(
                         label="SHAP Explanation"
                     )
+
+            gr.Markdown("---")
+            gr.Markdown("## Behavioural Analysis")
+
+            with gr.Row():
+
+                with gr.Column():
+
+                    amount_deviation_output = gr.Markdown()
+
+                with gr.Column():
+
+                    recent_frequency_output = gr.Markdown()
+
+            behavior_summary_output = gr.Markdown()
 
         # ==================================================
         # Model Performance Tab
@@ -705,13 +820,7 @@ with gr.Blocks(
     analyze_btn.click(
         fn=gradio_predict,
         inputs=[
-            step,
-            transaction_type,
-            amount,
-            oldbalanceOrg,
-            newbalanceOrig,
-            oldbalanceDest,
-            newbalanceDest
+            transaction_id_input
         ],
         outputs=[
             prediction_output,
@@ -719,13 +828,15 @@ with gr.Blocks(
             risk_output,
             action_output,
             explanation_output,
-            shap_output
+            shap_output,
+            amount_deviation_output,
+            recent_frequency_output,
+            behavior_summary_output
         ]
     )
 
     demo.launch(
     debug=True,
-    share=False,
+    share=True,
     server_port=7860
 )
-

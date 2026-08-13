@@ -1,0 +1,1622 @@
+diff --git a/test_fraud_ids_supported.csv b/ID_CSV/test_fraud_ids_supported.csv
+similarity index 100%
+rename from test_fraud_ids_supported.csv
+rename to ID_CSV/test_fraud_ids_supported.csv
+diff --git a/test_legit_ids_supported.csv b/ID_CSV/test_legit_ids_supported.csv
+similarity index 100%
+rename from test_legit_ids_supported.csv
+rename to ID_CSV/test_legit_ids_supported.csv
+diff --git a/train_fraud_ids_supported.csv b/ID_CSV/train_fraud_ids_supported.csv
+similarity index 100%
+rename from train_fraud_ids_supported.csv
+rename to ID_CSV/train_fraud_ids_supported.csv
+diff --git a/train_legit_ids_supported.csv b/ID_CSV/train_legit_ids_supported.csv
+similarity index 100%
+rename from train_legit_ids_supported.csv
+rename to ID_CSV/train_legit_ids_supported.csv
+diff --git a/Resarch_paper_hackathon.pdf b/Resarch_paper_hackathon.pdf
+deleted file mode 100644
+index 9848a80..0000000
+--- a/Resarch_paper_hackathon.pdf
++++ /dev/null
+@@ -1,296 +0,0 @@
+-                                       Hybrid LSTM-Graph Neural Framework for Robust Financial
+-                                                    Fraud Detection and Adversarial Resilience
+-
+-                                                                                    Mariam Zakaria Moussa Ali
+-
+-                                                                                         Computer Science Student, Arab Open University
+-
+-arXiv:2607.19350v1 [cs.AI] 2 May 2026  Abstract                                                        ward the majority (legitimate) class, often missing rare
+-                                                                                                       fraud events. Second, most models treat transactions
+-                                       Financial institutions face significant challenges in de-       as independent events, ignoring the temporal sequences
+-                                       tecting sophisticated money laundering patterns, such           that characterize a fraudulent operation. Third, tradi-
+-                                       as smurfing and layering, due to extreme data imbal-            tional models lack topological awareness; they cannot
+-                                       ance (0.13% fraud rate) and evolving adversarial evasion        capture the relational identity of an account within the
+-                                       tactics. This paper proposes FraudShield AI, a hy-              broader financial network, leaving them blind to coordi-
+-                                       brid framework that integrates Long Short-Term Memory           nated group-based laundering.
+-                                       (LSTM) networks with hand-crafted Graph Topological
+-                                       Features to capture both temporal sequences and struc-             This paper introduces FraudShield AI, a hybrid frame-
+-                                       tural relational context. By engineering network-centric        work that addresses these limitations by combining
+-                                       features—including PageRank Centrality, In-Degree dy-           LSTM sequence modeling with Graph Topological Fea-
+-                                       namics, and a custom Flow Ratio—the system shifts               ture Engineering. The system is designed to capture both
+-                                       the detection paradigm from isolated transaction anal-          the temporal behavior of individual accounts and their
+-                                       ysis to network-level forensics. A Focal Loss objective is      structural role in the transaction network. The primary
+-                                       used to address class imbalance, and a dynamic thresh-          contributions are:
+-                                       olding mechanism is introduced to improve resilience
+-                                       against low-value smurfing attacks. Experimental eval-             • A hybrid LSTM architecture that incorporates
+-                                       uation on the PaySim dataset shows that the proposed                  graph-derived features (PageRank, In-Degree, Flow
+-                                       hybrid model substantially outperforms Logistic Regres-               Ratio) alongside transactional features.
+-                                       sion and XGBoost baselines in Precision, Recall, and F1-
+-                                       Score, particularly on hard-to-detect micro-transaction            • A Focal Loss training objective combined with dy-
+-                                       fraud patterns. An ablation study confirms the comple-                namic threshold calibration to improve detection of
+-                                       mentary contribution of both the temporal and topologi-               low-value smurfing transactions.
+-                                       cal components.
+-                                                                                                          • An ablation study that quantifies the individual con-
+-                                          Keywords: Financial Fraud Detection, LSTM, Graph                   tributions of the temporal and topological compo-
+-                                       Features, PageRank, Focal Loss, Money Laundering,                     nents.
+-                                       Smurfing, Anti-Money Laundering.
+-
+-                                       1 Introduction                                                  • A set of forensic case studies demonstrating system
+-                                                                                                          behavior on representative laundering scenarios.
+-
+-                                       The rapid digitalization of global financial systems has        2 Related Work
+-                                       enabled seamless cross-border transactions while simulta-
+-                                       neously creating new avenues for financial crime, most no-      2.1 Traditional Machine Learning and
+-                                       tably money laundering. Traditional Anti-Money Laun-                   Class Imbalance
+-                                       dering (AML) systems rely on static, rule-based heuris-
+-                                       tics that struggle to detect modern, multi-layered criminal     Early fraud detection systems applied classical algorithms
+-                                       tactics. As financial criminals adopt increasingly complex      such as Random Forest and XGBoost to tabular transac-
+-                                       strategies such as Smurfing (fragmenting large sums into        tion data [3]. These methods perform reasonably on bal-
+-                                       small, inconspicuous transactions) and Layering (creat-         anced datasets but degrade significantly under extreme
+-                                       ing complex chains of transfers), intelligent and adaptive      class imbalance. Common mitigation strategies include
+-                                       detection frameworks are required.                              SMOTE oversampling and cost-sensitive learning; how-
+-                                                                                                       ever, these techniques do not address the inability of flat
+-                                          Current machine learning approaches to fraud detec-          classifiers to model temporal or relational structure.
+-                                       tion face three primary limitations. First, extreme class
+-                                       imbalance causes standard classifiers to be biased to-
+-
+-                                                                                                    1
+-2.2 Sequence Modeling with LSTM
+-
+-Recurrent Neural Networks, and LSTM networks in par-
+-ticular, have been applied to fraud detection to capture
+-velocity-based patterns across sequences of transactions
+-[1]. These models improve recall compared to static clas-
+-sifiers by modeling time-ordered behavior. A recognized
+-limitation, however, is the local view problem: LSTM
+-models analyze a single account in isolation and cannot
+-detect coordinated activity across multiple accounts.
+-
+-2.3 Graph-Based Relational Analysis
+-
+-Graph Neural Networks (GNNs) represent financial                Figure 1: Fraud concentration by transaction type, moti-
+-ecosystems as directed graphs in which accounts are nodes       vating type-specific feature filtering.
+-and transactions are edges. Structural metrics such as
+-PageRank and community-detection algorithms can iden-           3.2 Phase 2: Graph Topological Feature
+-tify suspicious network patterns, including sink nodes and             Engineering
+-fan-out hubs [5, 6]. Despite their strength in structural
+-analysis, pure graph models are sensitive to slowly evolv-      The financial ecosystem is modeled as a directed graph
+-ing or structurally stable laundering schemes, where the        G = (V, E), where each account is a node and each trans-
+-temporal balance dynamics are the primary anomaly sig-          action is a weighted directed edge.
+-nal.
+-                                                                   PageRank Centrality. PageRank is computed over
+-2.4 Hybrid Models: Gap and Contribu-                            the full transaction graph (∼9M nodes) to identify high-
+-       tion                                                     influence receiver accounts. A high PageRank receiver
+-                                                                with low account tenure is a proxy for a professional laun-
+-Several works have proposed combining sequence and              dering sink.
+-graph models for fraud detection [7]. However, most ex-
+-isting hybrid approaches either require end-to-end GNN             Flow Ratio. We define the Flow Ratio as:
+-training—which is computationally expensive at scale—
+-or do not explicitly address adversarial evasion via micro-     FlowRatio  =     In-Degree  ϵ   (1)
+-transactions. FraudShield AI fills this gap by feeding                        Out-Degree +
+-hand-crafted graph topological features into a stacked
+-LSTM, a design that is both computationally tractable           where ϵ is a small constant to avoid division by zero. In le-
+-and sensitive to smurfing patterns through dynamic              gitimate commerce this ratio is relatively stable, whereas
+-threshold calibration.                                          smurfing and layering operations exhibit high-velocity
+-                                                                volatility as funds are fragmented and re-aggregated.
+-3 Methodology
+-
+-3.1 Phase 1: Transaction-Level Feature
+-
+-Engineering                                                     3.3 Phase 3: Hybrid LSTM Architecture
+-
+-Raw features are enriched with engineered signals de-           The transaction-level and graph-level features are con-
+-signed to capture known laundering behaviors. The re-           catenated into a single feature vector and fed into a
+-sulting feature vector is 15-dimensional.                       stacked LSTM network. The LSTM hidden state ht
+-                                                                encodes the sequential history of an account’s activity,
+-   Balance Dynamics. The balance delta ∆B = Bold −              enabling detection of temporal anomalies such as rapid
+-Bnew is computed for both sender and receiver. A bi-            balance-delta spikes.
+-nary indicator flags the Zero-Balance pattern (Bnew = 0),
+-which our exploratory analysis identified as strongly as-          Focal Loss. To address the 0.13% fraud prevalence,
+-sociated with illicit fund evacuation.                          the network is trained using Focal Loss [2]:
+-
+-   Transaction Type Filtering. Consistent with prior            LFL(pt) = −αt(1 − pt)γ log(pt)  (2)
+-work on the PaySim dataset [3], fraudulent transactions
+-occur exclusively in TRANSFER and CASH_OUT oper-                with αt and γ tuned via cross-validation. This formula-
+-ations. Features are therefore restricted to this subspace.     tion down-weights the gradient contribution of easy le-
+-
+-                                                             2
+-                                                                Figure 4: Training loss convergence under Focal Loss,
+-                                                                showing stable optimization despite severe class imbal-
+-                                                                ance.
+-
+-                                                                smurfing transactions that would otherwise fall below the
+-                                                                standard threshold. This mechanism is evaluated quanti-
+-                                                                tatively in Section 4.
+-
+-Figure 2: Topological representation of the transaction         4 Experiments and Results
+-graph, illustrating centralized hubs identified via PageR-
+-ank.                                                            4.1 Experimental Setup
+-
+-gitimate samples, focusing training capacity on hard-to-        All experiments use the PaySim mobile money simulation
+-classify fraud cases.                                           dataset [3]. The data is split 80/20 into training and test
+-                                                                sets with stratified sampling to preserve class proportions.
+-                                                                Given the extreme imbalance, we report Precision, Recall,
+-                                                                F1-Score, and ROC-AUC as primary metrics. Accuracy
+-                                                                is not reported as it is dominated by the majority class.
+-
+-                                                                Dataset scope. PaySim is a synthetic simulator cali-
+-                                                                brated on real mobile-money transaction logs. While it
+-                                                                enables fully reproducible benchmarking, generalisation
+-                                                                to live institutional data should be validated empirically;
+-                                                                we discuss this in Section 5.3.
+-
+-                                                                4.2 Baseline Analysis
+-
+-Figure 3: Hybrid architecture: graph centrality features        Initial experiments using Logistic Regression and XG-
+-are concatenated with transaction features and passed           Boost with class-weight balancing confirmed a Recall
+-through a stacked LSTM for binary classification.               Gap: while ROC-AUC scores were high (0.989), per-class
+-                                                                Precision on the fraud label was very low (≈ 0.02), indi-
+-3.4 Phase 4: Dynamic Threshold Cali-                            cating that most predicted positives were false alarms.
+-       bration
+-                                                                4.3 Performance Evaluation
+-At inference time, the classification threshold is adjusted
+-based on a Topological Risk Score derived from the re-          Table 1 summarizes model performance. The Hybrid
+-ceiver’s PageRank and Flow Ratio. If both metrics exceed        LSTM-Graph model achieves the best Precision, Recall,
+-empirically set anomaly thresholds, the decision bound-         and F1-Score, with a substantial improvement over the
+-ary is lowered, enabling the system to flag low-value           LSTM-only and Graph-only baselines (see ablation in
+-                                                                Section 5.2).
+-
+-                                                                4.4 Feature Contribution Analysis
+-
+-                                                                Figure 10 shows SHAP-based feature importance for the
+-                                                                hybrid model. Graph-derived features (dest_pagerank,
+-
+-                                                             3
+-                                                               Table 1: Model comparison on the PaySim test set (fraud
+-                                                               class).
+-
+-                                                               Model                Prec.  Rec.   F1
+-
+-                                                               Logistic Regression   0.02  0.91  0.04
+-                                                               XGBoost (balanced)    0.61  0.88  0.72
+-                                                               LSTM only             0.74  0.72  0.73
+-                                                               Graph features only   0.81  0.69  0.75
+-
+-                                                               Hybrid (ours)        0.94   0.93  0.93
+-
+-Figure 5: Correlation matrix of raw features, showing
+-high multicollinearity between balance variables and mo-
+-tivating engineered features.
+-
+-                                                               Figure 7: Confusion matrix of the Hybrid LSTM-Graph
+-                                                               model, showing the distribution of true positives, false
+-                                                               negatives, and false positives on the test set.
+-
+-Figure 6: Baseline feature importance prior to graph fea-      5 Discussion       Evidence vs. Monetary
+-ture inclusion, showing heavy reliance on raw balance
+-amounts.                                                       5.1 Topological
+-                                                                      Thresholds
+-
+-dest_in_degree, flow_ratio) rank among the top contrib-        The most important finding is the system’s amount im-
+-utors, confirming that topological context provides signal     munity property: fraud detection is driven primarily by
+-that raw balance features cannot capture alone.                network structure rather than transaction magnitude.
+-                                                               This directly counters the assumption underlying tradi-
+-4.5 Forensic Case Studies                                      tional threshold-based AML systems (e.g., reporting re-
+-                                                               quirements for transactions above $10,000). The smurfing
+-Two representative scenarios validate the dynamic thresh-      case study confirms that a $15 transaction can carry more
+-olding mechanism:                                              forensic significance than a $50,000 legitimate transfer,
+-                                                               provided the receiver is a high-centrality sink.
+-   Micro-transaction (Smurfing). A $15 transfer was
+-flagged because the receiver exhibited anomalous PageR-        5.2 Ablation Study
+-ank and an In-Degree of 250, triggering a lowered clas-
+-sification threshold. This demonstrates that topological       Table 1 includes ablation variants. The LSTM-only
+-evidence can compensate for a sub-threshold transaction        model shows adequate recall on temporally obvious pat-
+-amount.                                                        terns but struggles with smurfing, which lacks a strong
+-                                                               temporal signature in isolation. The graph-only model
+-   Fan-out Distribution. A $500 transfer was flagged           performs well on structurally distinct laundering but
+-based on a high Flow Ratio, consistent with a rapid fan-       misses flash attacks where the temporal balance delta is
+-out distribution pattern used to obscure fund origin.
+-
+-                                                            4
+-                                                                 Figure 9: Predicted probability distribution of the hybrid
+-                                                                 model, showing concentration near 0 and 1 with limited
+-                                                                 uncertainty.
+-
+-Figure 8: ROC-AUC curves for all models. The hybrid
+-model achieves the highest area under the curve.
+-
+-the primary signal. The hybrid model benefits from both
+-dimensions, achieving the best F1-Score.
+-
+-5.3 Limitations
+-
+-Three limitations should be acknowledged. First, PaySim          Figure 10: Feature importance in the hybrid model.
+-is a synthetic simulator; while calibrated on real transac-      Graph metrics rival balance features in predictive con-
+-tion logs, the fraud patterns it generates may not cap-          tribution.
+-ture the full diversity of real-world laundering strategies.
+-External validation on live institutional data—ideally in        6 Conclusion and Future Work
+-collaboration with a financial institution—is an impor-
+-tant direction for future work. Second, the graph features       6.1 Conclusion
+-are computed offline; an online, incremental PageRank
+-update mechanism would be required for true real-time            This paper presented FraudShield AI, a hybrid fraud de-
+-deployment. Third, the dynamic thresholding parameters           tection framework that combines LSTM sequence model-
+-(anomaly cutoffs for PageRank and Flow Ratio) are tuned          ing with graph topological features to address the limita-
+-on the validation set and may require re-calibration for         tions of purely temporal or purely structural approaches.
+-different institution profiles or regulatory jurisdictions.      Experiments on the PaySim dataset demonstrate that the
+-                                                                 hybrid model substantially outperforms baseline classi-
+-5.4 Scalability                                                  fiers in Precision and Recall on the fraud minority class,
+-                                                                 and that dynamic threshold calibration enables detection
+-Graph feature computation for 9 million nodes was com-           of low-value smurfing attacks that evade conventional sys-
+-pleted using a distributed NetworkX-compatible pipeline.         tems.
+-End-to-end inference latency (feature extraction + LSTM
+-forward pass) was measured at under 100ms per transac-           6.2 Future Work
+-tion on a single GPU, which is compatible with real-time
+-transaction blocking use cases.                                     • End-to-end GNN integration: Replacing hand-
+-                                                                       crafted graph features with learned representations
+-                                                                       via GraphSAGE or Graph Attention Networks [7].
+-
+-                                                              5
+-Figure 11: Transaction amount vs. predicted fraud proba-                      [2] Lin, T. Y., et al. (2017). Focal Loss for Dense Object
+-bility. The model assigns high fraud probability to micro-                        Detection. Proceedings of ICCV.
+-transactions targeting high-centrality sinks.
+-                                                                              [3] Lopez-Rojas, E. A., et al. (2016). PaySim: A fi-
+-                                                                                  nancial mobile money simulator for fraud detection.
+-                                                                                  EMSS.
+-
+-                                                                              [4] Page, L., et al. (1999). The PageRank Citation Rank-
+-                                                                                  ing: Bringing Order to the Web. Stanford Technical
+-                                                                                  Report.
+-
+-                                                                              [5] Akoglu, L., et al. (2013). Opinion Fraud Detection
+-                                                                                  in Online Reviews by Network Effects. ICWSM.
+-
+-                                                                              [6] Weber, M., et al. (2019). Anti-Money Laundering in
+-                                                                                  Bitcoin: Experimenting with Graph Convolutional
+-                                                                                  Networks for Financial Forensics. arXiv:1908.02591.
+-
+-                                                                              [7] Hamilton, W., et al. (2017). Inductive Represen-
+-                                                                                  tation Learning on Large Graphs (GraphSAGE).
+-                                                                                  NeurIPS.
+-
+-                                                                              [8] Goodfellow, I., et al. (2014). Generative Adversarial
+-                                                                                  Nets. NeurIPS.
+-
+-Figure 12: System outputs for the two forensic case stud-
+-ies, illustrating the role of topological risk scores in deci-
+-sion making.
+-
+-   • Incremental graph updates: Developing online
+-      PageRank algorithms to support true real-time in-
+-      ference.
+-
+-   • Federated learning: Enabling cross-institutional
+-      graph learning while preserving data privacy.
+-
+-   • Adversarial training with GANs: Using gener-
+-      ative models to synthesize diverse fraud patterns for
+-      more robust training [8].
+-
+-References
+-
+- [1] Hochreiter, S. & Schmidhuber, J. (1997). Long
+-      Short-Term Memory. Neural Computation, 9(8),
+-      1735–1780.
+-
+-                                                                           6
+-
+diff --git a/account_graph_features.parquet b/account_graph_features.parquet
+deleted file mode 100644
+index 169234c..0000000
+Binary files a/account_graph_features.parquet and /dev/null differ
+diff --git a/account_to_id.pkl b/account_to_id.pkl
+deleted file mode 100644
+index f755162..0000000
+Binary files a/account_to_id.pkl and /dev/null differ
+diff --git a/app.py b/app.py
+index 20249cc..953feee 100644
+--- a/app.py
++++ b/app.py
+@@ -8,32 +8,37 @@ import pandas as pd
+ import numpy as np
+ import gradio as gr
+ import shap
++import pickle
++import igraph as ig
+ 
+ import matplotlib.pyplot as plt
+ 
+ from IPython.display import display
+ 
++from transaction_lookup_layer import lookup_transaction, transaction_lookup
++from sender_behavior import analyze_sender_behavior
++
+ # ==========================================================
+ # Load Production Model
+ # ==========================================================
+ 
+ print("Loading production assets...")
+ 
+-model = joblib.load("models/fraud_model.joblib")
+-encoder = joblib.load("models/label_encoder.joblib")
+-feature_columns = joblib.load("models/feature_columns.joblib")
++model = joblib.load("models_all/fraud_model_g.joblib")
++encoder = joblib.load("models_all/label_encoder_g.joblib")
++feature_columns = joblib.load("models_all/feature_column_g.joblib")
+ 
+ print("✅ Random Forest loaded")
+ print("✅ Label Encoder loaded")
+ print("✅ Feature Columns loaded")
+ 
++print(f"\nModel expects {len(feature_columns)} features.")
+ 
++df_lookup = transaction_lookup
+ 
+-print(encoder.classes_)
+-for i, cls in enumerate(encoder.classes_):
+-    print(i, "->", cls)
+-
+-print(f"\nModel expects {len(feature_columns)} features.")
++print("Lookup loaded:", df_lookup.shape)
++print(df_lookup.head())
++print(df_lookup.columns.tolist())
+ 
+ # ==========================================================
+ # Initialize SHAP Explainer
+@@ -56,7 +61,8 @@ def analyze_transaction(
+     oldbalanceOrg,
+     newbalanceOrig,
+     oldbalanceDest,
+-    newbalanceDest
++    newbalanceDest,
++    raw_transaction=None
+ ):
+     """
+     Performs complete transaction analysis.
+@@ -72,8 +78,12 @@ def analyze_transaction(
+     # Feature Engineering
+     # Must match training exactly
+     # -----------------------------
+-    errorBalanceOrig = oldbalanceOrg - amount - newbalanceOrig
++    errorBalanceOrig = newbalanceOrig + amount - oldbalanceOrg
+     errorBalanceDest = oldbalanceDest + amount - newbalanceDest
++    dest_pagerank = 0.0
++
++    if raw_transaction is not None:
++        dest_pagerank = raw_transaction["dest_pagerank"]
+ 
+     # -----------------------------
+     # Build Input DataFrame
+@@ -87,7 +97,8 @@ def analyze_transaction(
+         "oldbalanceDest": oldbalanceDest,
+         "newbalanceDest": newbalanceDest,
+         "errorBalanceOrig": errorBalanceOrig,
+-        "errorBalanceDest": errorBalanceDest
++        "errorBalanceDest": errorBalanceDest,
++        "dest_pagerank": dest_pagerank
+     }])
+ 
+     # Ensure correct feature order
+@@ -124,10 +135,29 @@ def analyze_transaction(
+         "probability": float(probability),
+         "risk_level": risk_level,
+         "input_df": input_df,
+-        "shap": explanation
++        "shap": explanation,
++        "raw_transaction": raw_transaction
+     }
+ 
+-    # ==========================================================
++
++def analyze_transaction_from_lookup(transaction_id):
++    raw_transaction = lookup_transaction(transaction_id)
++
++    if raw_transaction is None:
++        return None
++
++    return analyze_transaction(
++        raw_transaction["step"],
++        raw_transaction["type"],
++        raw_transaction["amount"],
++        raw_transaction["oldbalanceOrg"],
++        raw_transaction["newbalanceOrig"],
++        raw_transaction["oldbalanceDest"],
++        raw_transaction["newbalanceDest"],
++        raw_transaction=raw_transaction
++    )
++
++   # ==========================================================
+ # CELL: Rank SHAP Features
+ # ==========================================================
+ 
+@@ -157,7 +187,8 @@ def rank_shap_features(analysis, top_k=3):
+             "feature": feature,
+             "value": feature_values[feature],
+             "shap": float(shap_value),
+-            "abs_shap": abs(float(shap_value))
++            "abs_shap": abs(float(shap_value)),
++            "raw_transaction": analysis.get("raw_transaction")
+         })
+ 
+     ranked.sort(
+@@ -309,17 +340,22 @@ def interpret_transaction_type(feature_info):
+     Interpret the transaction type.
+     """
+ 
+-    transaction_type = feature_info["value"]
++    raw_transaction = feature_info.get("raw_transaction")
++    transaction_type = (
++        raw_transaction["type"]
++        if raw_transaction is not None
++        else feature_info["value"]
++    )
+ 
+     observation = {}
+ 
+     observation["title"] = "Transaction Type"
+ 
+-    if transaction_type == 1:
++    if transaction_type == "TRANSFER" or transaction_type == 1:
+ 
+         description = "The transaction is a TRANSFER."
+ 
+-    elif transaction_type == 0:
++    elif transaction_type == "CASH_OUT" or transaction_type == 0:
+ 
+         description = "The transaction is a CASH_OUT."
+ 
+@@ -421,28 +457,113 @@ def generate_explanation(analysis):
+ import matplotlib.pyplot as plt
+ import shap
+ 
+-def gradio_predict(
+-    step,
+-    transaction_type,
+-    amount,
+-    oldbalanceOrg,
+-    newbalanceOrig,
+-    oldbalanceDest,
+-    newbalanceDest
+-):
++def _format_money(value):
++    if value is None:
++        return "Insufficient historical data"
++
++    return f"{float(value):,.2f}"
++
++
++def _format_ratio(value):
++    if value is None:
++        return "Insufficient historical data"
++
++    return f"{float(value):.2f}x"
++
++
++def _format_amount_deviation_card(behavior):
++    amount_deviation = behavior["amount_deviation"]
++    status = amount_deviation["status"]
++    status_text = (
++        "Insufficient historical data"
++        if status in {"no_prior_transactions", "zero_historical_median"}
++        else status.replace("_", " ").title()
++    )
++
++    return f"""
++### Amount Deviation
++
++**Current transaction amount:** {_format_money(amount_deviation["current_amount"])}
++
++**Historical median amount:** {_format_money(amount_deviation["historical_median"])}
++
++**Deviation ratio:** {_format_ratio(amount_deviation["ratio"])}
++
++**Status:** {status_text}
++"""
++
++
++def _format_recent_frequency_card(behavior):
++    recent_frequency = behavior["recent_frequency"]
++
++    return f"""
++### Recent Transaction Frequency
++
++**Recent activity window:** {recent_frequency["window"]} steps
++
++**Transactions in window:** {recent_frequency["transaction_count"]}
++
++**Status:** {recent_frequency["status"].replace("_", " ").title()}
++"""
++
++
++def _format_behavior_summary(behavior):
++    return "\n".join(
++        f"- {line}"
++        for line in behavior["summary"]
++    )
++
++
++def _empty_plot():
++    plt.close("all")
++    return None
++
++
++def gradio_predict(transaction_id):
+ 
+     # -------------------------------------------------
+-    # Run AI inference
++    # Lookup transaction and run AI inference
+     # -------------------------------------------------
+-    analysis = analyze_transaction(
+-        step,
+-        transaction_type,
+-        amount,
+-        oldbalanceOrg,
+-        newbalanceOrig,
+-        oldbalanceDest,
+-        newbalanceDest
+-    )
++    raw_transaction = lookup_transaction(transaction_id)
++
++    if raw_transaction is None:
++        message = "Transaction ID not found. Please enter a valid transaction ID."
++        return (
++            message,
++            "",
++            "",
++            "",
++            message,
++            _empty_plot(),
++            "",
++            "",
++            "",
++        )
++
++    try:
++        analysis = analyze_transaction(
++            raw_transaction["step"],
++            raw_transaction["type"],
++            raw_transaction["amount"],
++            raw_transaction["oldbalanceOrg"],
++            raw_transaction["newbalanceOrig"],
++            raw_transaction["oldbalanceDest"],
++            raw_transaction["newbalanceDest"],
++            raw_transaction=raw_transaction
++        )
++    except Exception as exc:
++        message = f"Unable to analyze this transaction: {exc}"
++        return (
++            message,
++            "",
++            "",
++            "",
++            message,
++            _empty_plot(),
++            "",
++            "",
++            "",
++        )
+ 
+     # -------------------------------------------------
+     # Prediction
+@@ -461,6 +582,8 @@ def gradio_predict(
+     # -------------------------------------------------
+     explanation = generate_explanation(analysis)
+ 
++    behavior = analyze_sender_behavior(raw_transaction)
++
+     # -------------------------------------------------
+     # SHAP Waterfall Plot
+     # -------------------------------------------------
+@@ -485,7 +608,10 @@ def gradio_predict(
+         analysis["risk_level"],
+         action,
+         explanation,
+-        fig
++        fig,
++        _format_amount_deviation_card(behavior),
++        _format_recent_frequency_card(behavior),
++        _format_behavior_summary(behavior)
+     )
+ 
+     # ==========================================================
+@@ -522,47 +648,15 @@ with gr.Blocks(
+                 # ------------------------------------------
+                 with gr.Column(scale=1):
+ 
+-                    gr.Markdown("## 📋 Transaction Information")
+-
+-                    step = gr.Number(
+-                        label="Transaction Time (Simulation Hour)",
+-                        value=1,
+-                        precision=0
+-                    )
+-
+-                    transaction_type = gr.Dropdown(
+-                        choices=["TRANSFER", "CASH_OUT"],
+-                        value="TRANSFER",
+-                        label="Transaction Type"
+-                    )
+-
+-                    amount = gr.Number(
+-                        label="Transaction Amount",
+-                        value=1000
+-                    )
+-
+-                    oldbalanceOrg = gr.Number(
+-                        label="Sender Balance (Before)",
+-                        value=10000
+-                    )
+-
+-                    newbalanceOrig = gr.Number(
+-                        label="Sender Balance (After)",
+-                        value=9000
+-                    )
+-
+-                    oldbalanceDest = gr.Number(
+-                        label="Receiver Balance (Before)",
+-                        value=0
+-                    )
++                    gr.Markdown("## Transaction Investigation")
+ 
+-                    newbalanceDest = gr.Number(
+-                        label="Receiver Balance (After)",
+-                        value=1000
++                    transaction_id_input = gr.Textbox(
++                        label="Transaction ID",
++                        placeholder="TX00000001"
+                     )
+ 
+                     analyze_btn = gr.Button(
+-                        "🔍 Analyze Transaction",
++                        "Analyze Transaction",
+                         variant="primary",
+                         size="lg"
+                     )
+@@ -572,7 +666,7 @@ with gr.Blocks(
+                 # ------------------------------------------
+                 with gr.Column(scale=1):
+ 
+-                    gr.Markdown("## 📊 Analysis Results")
++                    gr.Markdown("## Risk Assessment")
+ 
+                     prediction_output = gr.Textbox(
+                         label="Prediction",
+@@ -594,16 +688,35 @@ with gr.Blocks(
+                         interactive=False
+                     )
+ 
++                    gr.Markdown("## Why was this transaction flagged?")
++
+                     explanation_output = gr.Textbox(
+                         label="AI Investigation Summary",
+                         lines=7,
+                         interactive=False
+                     )
+ 
++                    gr.Markdown("## SHAP Explanation")
++
+                     shap_output = gr.Plot(
+                         label="SHAP Explanation"
+                     )
+ 
++            gr.Markdown("---")
++            gr.Markdown("## Behavioural Analysis")
++
++            with gr.Row():
++
++                with gr.Column():
++
++                    amount_deviation_output = gr.Markdown()
++
++                with gr.Column():
++
++                    recent_frequency_output = gr.Markdown()
++
++            behavior_summary_output = gr.Markdown()
++
+         # ==================================================
+         # Model Performance Tab
+         # ==================================================
+@@ -707,13 +820,7 @@ with gr.Blocks(
+     analyze_btn.click(
+         fn=gradio_predict,
+         inputs=[
+-            step,
+-            transaction_type,
+-            amount,
+-            oldbalanceOrg,
+-            newbalanceOrig,
+-            oldbalanceDest,
+-            newbalanceDest
++            transaction_id_input
+         ],
+         outputs=[
+             prediction_output,
+@@ -721,7 +828,10 @@ with gr.Blocks(
+             risk_output,
+             action_output,
+             explanation_output,
+-            shap_output
++            shap_output,
++            amount_deviation_output,
++            recent_frequency_output,
++            behavior_summary_output
+         ]
+     )
+ 
+@@ -730,4 +840,3 @@ with gr.Blocks(
+     share=True,
+     server_port=7860
+ )
+-
+diff --git a/app1.py b/app1.py
+deleted file mode 100644
+index 953feee..0000000
+--- a/app1.py
++++ /dev/null
+@@ -1,842 +0,0 @@
+-# ==========================================================
+-# AI Fraud Investigation System
+-# Production Deployment Notebook
+-# ==========================================================
+-
+-import joblib
+-import pandas as pd
+-import numpy as np
+-import gradio as gr
+-import shap
+-import pickle
+-import igraph as ig
+-
+-import matplotlib.pyplot as plt
+-
+-from IPython.display import display
+-
+-from transaction_lookup_layer import lookup_transaction, transaction_lookup
+-from sender_behavior import analyze_sender_behavior
+-
+-# ==========================================================
+-# Load Production Model
+-# ==========================================================
+-
+-print("Loading production assets...")
+-
+-model = joblib.load("models_all/fraud_model_g.joblib")
+-encoder = joblib.load("models_all/label_encoder_g.joblib")
+-feature_columns = joblib.load("models_all/feature_column_g.joblib")
+-
+-print("✅ Random Forest loaded")
+-print("✅ Label Encoder loaded")
+-print("✅ Feature Columns loaded")
+-
+-print(f"\nModel expects {len(feature_columns)} features.")
+-
+-df_lookup = transaction_lookup
+-
+-print("Lookup loaded:", df_lookup.shape)
+-print(df_lookup.head())
+-print(df_lookup.columns.tolist())
+-
+-# ==========================================================
+-# Initialize SHAP Explainer
+-# ==========================================================
+-
+-print("Initializing SHAP Explainer...")
+-
+-explainer = shap.TreeExplainer(model)
+-
+-print("✅ SHAP Explainer Ready!")
+-
+-# ==========================================================
+-# AI Transaction Inference Engine
+-# ==========================================================
+-
+-def analyze_transaction(
+-    step,
+-    transaction_type,
+-    amount,
+-    oldbalanceOrg,
+-    newbalanceOrig,
+-    oldbalanceDest,
+-    newbalanceDest,
+-    raw_transaction=None
+-):
+-    """
+-    Performs complete transaction analysis.
+-    Returns everything required by the frontend.
+-    """
+-
+-    # -----------------------------
+-    # Encode transaction type
+-    # -----------------------------
+-    transaction_type_encoded = encoder.transform([transaction_type])[0]
+-
+-    # -----------------------------
+-    # Feature Engineering
+-    # Must match training exactly
+-    # -----------------------------
+-    errorBalanceOrig = newbalanceOrig + amount - oldbalanceOrg
+-    errorBalanceDest = oldbalanceDest + amount - newbalanceDest
+-    dest_pagerank = 0.0
+-
+-    if raw_transaction is not None:
+-        dest_pagerank = raw_transaction["dest_pagerank"]
+-
+-    # -----------------------------
+-    # Build Input DataFrame
+-    # -----------------------------
+-    input_df = pd.DataFrame([{
+-        "step": step,
+-        "type": transaction_type_encoded,
+-        "amount": amount,
+-        "oldbalanceOrg": oldbalanceOrg,
+-        "newbalanceOrig": newbalanceOrig,
+-        "oldbalanceDest": oldbalanceDest,
+-        "newbalanceDest": newbalanceDest,
+-        "errorBalanceOrig": errorBalanceOrig,
+-        "errorBalanceDest": errorBalanceDest,
+-        "dest_pagerank": dest_pagerank
+-    }])
+-
+-    # Ensure correct feature order
+-    input_df = input_df[feature_columns]
+-
+-    # -----------------------------
+-    # Prediction
+-    # -----------------------------
+-    prediction = model.predict(input_df)[0]
+-    probability = model.predict_proba(input_df)[0][1]
+-
+-    # -----------------------------
+-    # SHAP Explanation
+-    # -----------------------------
+-    explanation = explainer(input_df)
+-
+-    # -----------------------------
+-    # Risk Level
+-    # -----------------------------
+-    if probability >= 0.90:
+-        risk_level = "Critical"
+-    elif probability >= 0.70:
+-        risk_level = "High"
+-    elif probability >= 0.40:
+-        risk_level = "Medium"
+-    else:
+-        risk_level = "Low"
+-
+-    # -----------------------------
+-    # Return Analysis Object
+-    # -----------------------------
+-    return {
+-        "prediction": int(prediction),
+-        "probability": float(probability),
+-        "risk_level": risk_level,
+-        "input_df": input_df,
+-        "shap": explanation,
+-        "raw_transaction": raw_transaction
+-    }
+-
+-
+-def analyze_transaction_from_lookup(transaction_id):
+-    raw_transaction = lookup_transaction(transaction_id)
+-
+-    if raw_transaction is None:
+-        return None
+-
+-    return analyze_transaction(
+-        raw_transaction["step"],
+-        raw_transaction["type"],
+-        raw_transaction["amount"],
+-        raw_transaction["oldbalanceOrg"],
+-        raw_transaction["newbalanceOrig"],
+-        raw_transaction["oldbalanceDest"],
+-        raw_transaction["newbalanceDest"],
+-        raw_transaction=raw_transaction
+-    )
+-
+-   # ==========================================================
+-# CELL: Rank SHAP Features
+-# ==========================================================
+-
+-import numpy as np
+-
+-def rank_shap_features(analysis, top_k=3):
+-    """
+-    Returns the top SHAP features ranked by absolute contribution.
+-    """
+-
+-    shap_values = analysis["shap"].values
+-
+-    # Handle binary classification SHAP output
+-    if shap_values.ndim == 3:
+-        shap_values = shap_values[0, :, 1]
+-    else:
+-        shap_values = shap_values[0]
+-
+-    feature_names = analysis["input_df"].columns.tolist()
+-    feature_values = analysis["input_df"].iloc[0].to_dict()
+-
+-    ranked = []
+-
+-    for feature, shap_value in zip(feature_names, shap_values):
+-
+-        ranked.append({
+-            "feature": feature,
+-            "value": feature_values[feature],
+-            "shap": float(shap_value),
+-            "abs_shap": abs(float(shap_value)),
+-            "raw_transaction": analysis.get("raw_transaction")
+-        })
+-
+-    ranked.sort(
+-        key=lambda x: x["abs_shap"],
+-        reverse=True
+-    )
+-
+-    return ranked[:top_k]
+-
+-    # ==========================================================
+-# CELL: Interpret Sender Balance Consistency
+-# ==========================================================
+-
+-def interpret_error_balance_orig(feature_info):
+-    """
+-    Interpret the engineered sender balance consistency feature.
+-    """
+-
+-    value = feature_info["value"]
+-
+-    observation = {}
+-
+-    if abs(value) < 1e-6:
+-
+-        observation["title"] = "Sender Balance Consistency"
+-
+-        observation["description"] = (
+-            "The sender's balance is internally consistent with the transaction amount."
+-        )
+-
+-    else:
+-
+-        observation["title"] = "Sender Balance Consistency"
+-
+-        observation["description"] = (
+-            f"The sender's balance differs from the expected value by {value:.2f}."
+-        )
+-
+-    observation["impact"] = (
+-        "AI Assessment:This observation increased the model's confidence that the transaction is fraudulent."
+-
+-        if feature_info["shap"] > 0
+-        else
+-        "AI Assessment:This observation increased the model's confidence that the transaction is legitimate."
+-
+-    )
+-
+-    observation["importance"] = feature_info["abs_shap"]
+-
+-    return observation
+-
+-    # ==========================================================
+-# CELL: Interpret Receiver Balance Consistency
+-# ==========================================================
+-
+-def interpret_error_balance_dest(feature_info):
+-    """
+-    Interpret the engineered receiver balance consistency feature.
+-    """
+-
+-    value = feature_info["value"]
+-
+-    observation = {}
+-
+-    observation["title"] = "Receiver Balance Consistency"
+-
+-    if abs(value) < 1e-6:
+-
+-        observation["description"] = (
+-            "The receiver's balance changed exactly as expected."
+-        )
+-
+-    else:
+-
+-        observation["description"] = (
+-            f"The receiver's balance differs from the expected value by {value:.2f}."
+-        )
+-
+-    observation["impact"] = (
+-        "Positive contribution to fraud prediction"
+-        if feature_info["shap"] > 0
+-        else
+-        "Negative contribution to fraud prediction"
+-    )
+-
+-    observation["importance"] = feature_info["abs_shap"]
+-
+-    return observation
+-
+-    # ==========================================================
+-# CELL: Interpret Transaction Amount
+-# ==========================================================
+-
+-def interpret_amount(feature_info):
+-    """
+-    Interpret the transaction amount into human-readable categories.
+-    """
+-
+-    amount = feature_info["value"]
+-
+-    observation = {}
+-
+-    observation["title"] = "Transaction Amount"
+-
+-    # ---------------------------------------------
+-    # Categorize transaction value
+-    # ---------------------------------------------
+-    if amount < 1000:
+-
+-        category = "Low-value"
+-
+-    elif amount < 20000:
+-
+-        category = "Moderate-value"
+-
+-    elif amount < 200000:
+-
+-        category = "High-value"
+-
+-    else:
+-
+-        category = "Very high-value"
+-
+-    observation["description"] = (
+-        f"This is a {category.lower()} transaction "
+-        f"({amount:,.2f})."
+-    )
+-
+-    # ---------------------------------------------
+-    # SHAP contribution
+-    # ---------------------------------------------
+-    observation["impact"] = (
+-        "Positive contribution to fraud prediction"
+-        if feature_info["shap"] > 0
+-        else
+-        "Negative contribution to fraud prediction"
+-    )
+-
+-    observation["importance"] = feature_info["abs_shap"]
+-
+-    return observation
+-
+-    # ==========================================================
+-# CELL: Interpret Transaction Type
+-# ==========================================================
+-
+-def interpret_transaction_type(feature_info):
+-    """
+-    Interpret the transaction type.
+-    """
+-
+-    raw_transaction = feature_info.get("raw_transaction")
+-    transaction_type = (
+-        raw_transaction["type"]
+-        if raw_transaction is not None
+-        else feature_info["value"]
+-    )
+-
+-    observation = {}
+-
+-    observation["title"] = "Transaction Type"
+-
+-    if transaction_type == "TRANSFER" or transaction_type == 1:
+-
+-        description = "The transaction is a TRANSFER."
+-
+-    elif transaction_type == "CASH_OUT" or transaction_type == 0:
+-
+-        description = "The transaction is a CASH_OUT."
+-
+-    else:
+-
+-        description = f"Unknown transaction type ({transaction_type})."
+-
+-    observation["description"] = description
+-
+-    observation["impact"] = (
+-        "Positive contribution to fraud prediction"
+-        if feature_info["shap"] > 0
+-        else
+-        "Negative contribution to fraud prediction"
+-    )
+-
+-    observation["importance"] = feature_info["abs_shap"]
+-
+-    return observation
+-
+-    # ==========================================================
+-# CELL: Explanation Generator
+-# ==========================================================
+-
+-def generate_explanation(analysis):
+-    """
+-    Generate a human-readable investigation report
+-    using the top SHAP features.
+-    """
+-
+-    # Get the most important features
+-    ranked = rank_shap_features(analysis, top_k=9)
+-
+-    observations = []
+-
+-    # ---------------------------------------------
+-    # Dispatch to the correct interpreter
+-    # ---------------------------------------------
+-    for feature_info in ranked:
+-
+-        feature = feature_info["feature"]
+-
+-        if len(observations)==3:
+-            break
+-
+-        if feature == "amount":
+-
+-            observations.append(
+-                interpret_amount(feature_info)
+-            )
+-
+-        elif feature == "type":
+-
+-            observations.append(
+-                interpret_transaction_type(feature_info)
+-            )
+-
+-        elif feature == "errorBalanceOrig":
+-
+-            observations.append(
+-                interpret_error_balance_orig(feature_info)
+-            )
+-
+-        elif feature == "errorBalanceDest":
+-
+-            observations.append(
+-                interpret_error_balance_dest(feature_info)
+-            )
+-
+-    # ---------------------------------------------
+-    # Build report
+-    # ---------------------------------------------
+-    lines = []
+-
+-    if analysis["prediction"] == 1:
+-        lines.append("🚨 AI Investigation Summary")
+-        lines.append("Prediction: FRAUD")
+-    else:
+-        lines.append("✅ AI Investigation Summary")
+-        lines.append("Prediction: LEGITIMATE")
+-
+-    lines.append("")
+-    lines.append("Key Findings:")
+-    lines.append("")
+-
+-    for obs in observations:
+-
+-        lines.append(f"• {obs['title']}")
+-        lines.append(f"  {obs['description']}")
+-        lines.append(f"  {obs['impact']}")
+-        lines.append("")
+-
+-    return "\n".join(lines)
+-
+-    # ==========================================================
+-# CELL: Gradio Callback Function
+-# ==========================================================
+-
+-import matplotlib.pyplot as plt
+-import shap
+-
+-def _format_money(value):
+-    if value is None:
+-        return "Insufficient historical data"
+-
+-    return f"{float(value):,.2f}"
+-
+-
+-def _format_ratio(value):
+-    if value is None:
+-        return "Insufficient historical data"
+-
+-    return f"{float(value):.2f}x"
+-
+-
+-def _format_amount_deviation_card(behavior):
+-    amount_deviation = behavior["amount_deviation"]
+-    status = amount_deviation["status"]
+-    status_text = (
+-        "Insufficient historical data"
+-        if status in {"no_prior_transactions", "zero_historical_median"}
+-        else status.replace("_", " ").title()
+-    )
+-
+-    return f"""
+-### Amount Deviation
+-
+-**Current transaction amount:** {_format_money(amount_deviation["current_amount"])}
+-
+-**Historical median amount:** {_format_money(amount_deviation["historical_median"])}
+-
+-**Deviation ratio:** {_format_ratio(amount_deviation["ratio"])}
+-
+-**Status:** {status_text}
+-"""
+-
+-
+-def _format_recent_frequency_card(behavior):
+-    recent_frequency = behavior["recent_frequency"]
+-
+-    return f"""
+-### Recent Transaction Frequency
+-
+-**Recent activity window:** {recent_frequency["window"]} steps
+-
+-**Transactions in window:** {recent_frequency["transaction_count"]}
+-
+-**Status:** {recent_frequency["status"].replace("_", " ").title()}
+-"""
+-
+-
+-def _format_behavior_summary(behavior):
+-    return "\n".join(
+-        f"- {line}"
+-        for line in behavior["summary"]
+-    )
+-
+-
+-def _empty_plot():
+-    plt.close("all")
+-    return None
+-
+-
+-def gradio_predict(transaction_id):
+-
+-    # -------------------------------------------------
+-    # Lookup transaction and run AI inference
+-    # -------------------------------------------------
+-    raw_transaction = lookup_transaction(transaction_id)
+-
+-    if raw_transaction is None:
+-        message = "Transaction ID not found. Please enter a valid transaction ID."
+-        return (
+-            message,
+-            "",
+-            "",
+-            "",
+-            message,
+-            _empty_plot(),
+-            "",
+-            "",
+-            "",
+-        )
+-
+-    try:
+-        analysis = analyze_transaction(
+-            raw_transaction["step"],
+-            raw_transaction["type"],
+-            raw_transaction["amount"],
+-            raw_transaction["oldbalanceOrg"],
+-            raw_transaction["newbalanceOrig"],
+-            raw_transaction["oldbalanceDest"],
+-            raw_transaction["newbalanceDest"],
+-            raw_transaction=raw_transaction
+-        )
+-    except Exception as exc:
+-        message = f"Unable to analyze this transaction: {exc}"
+-        return (
+-            message,
+-            "",
+-            "",
+-            "",
+-            message,
+-            _empty_plot(),
+-            "",
+-            "",
+-            "",
+-        )
+-
+-    # -------------------------------------------------
+-    # Prediction
+-    # -------------------------------------------------
+-    if analysis["prediction"] == 1:
+-        prediction = "🚨 FRAUD DETECTED"
+-        action = "Immediately Investigate Transaction"
+-    else:
+-        prediction = "✅ LEGITIMATE"
+-        action = "Approve Transaction"
+-
+-    probability = f"{analysis['probability']*100:.2f}%"
+-
+-    # -------------------------------------------------
+-    # AI Investigation Report
+-    # -------------------------------------------------
+-    explanation = generate_explanation(analysis)
+-
+-    behavior = analyze_sender_behavior(raw_transaction)
+-
+-    # -------------------------------------------------
+-    # SHAP Waterfall Plot
+-    # -------------------------------------------------
+-    plt.close("all")
+-
+-    shap.plots.waterfall(
+-    analysis["shap"][0, :, 1],
+-    show=False,
+-    max_display= 8
+-)
+-
+-    fig = plt.gcf()
+-    fig.set_size_inches(10,8)
+-    fig.subplots_adjust(left= 0.35, right= 0.95)
+-
+-    # -------------------------------------------------
+-    # Return to Gradio
+-    # -------------------------------------------------
+-    return (
+-        prediction,
+-        probability,
+-        analysis["risk_level"],
+-        action,
+-        explanation,
+-        fig,
+-        _format_amount_deviation_card(behavior),
+-        _format_recent_frequency_card(behavior),
+-        _format_behavior_summary(behavior)
+-    )
+-
+-    # ==========================================================
+-# CELL: Dashboard Skeleton
+-# ==========================================================
+-
+-import gradio as gr
+-
+-gr.close_all()
+-
+-with gr.Blocks(
+-    title="AI Fraud Investigation Platform"
+-) as demo:
+-
+-    # ======================================================
+-    # Header
+-    # ======================================================
+-    gr.Markdown("""
+-# 🛡️ FraudLens
+-### Explainable Financial Transaction Analysis for Fraud Ananlysts
+-""")
+-
+-    with gr.Tabs():
+-
+-        # ==================================================
+-        # Transaction Analysis Tab
+-        # ==================================================
+-        with gr.Tab("🔍 Transaction Analysis"):
+-
+-            with gr.Row():
+-
+-                # ------------------------------------------
+-                # Left Panel - Inputs
+-                # ------------------------------------------
+-                with gr.Column(scale=1):
+-
+-                    gr.Markdown("## Transaction Investigation")
+-
+-                    transaction_id_input = gr.Textbox(
+-                        label="Transaction ID",
+-                        placeholder="TX00000001"
+-                    )
+-
+-                    analyze_btn = gr.Button(
+-                        "Analyze Transaction",
+-                        variant="primary",
+-                        size="lg"
+-                    )
+-
+-                # ------------------------------------------
+-                # Right Panel - Results
+-                # ------------------------------------------
+-                with gr.Column(scale=1):
+-
+-                    gr.Markdown("## Risk Assessment")
+-
+-                    prediction_output = gr.Textbox(
+-                        label="Prediction",
+-                        interactive=False
+-                    )
+-
+-                    probability_output = gr.Textbox(
+-                        label="Fraud Probability",
+-                        interactive=False
+-                    )
+-
+-                    risk_output = gr.Textbox(
+-                        label="Risk Level",
+-                        interactive=False
+-                    )
+-
+-                    action_output = gr.Textbox(
+-                        label="Recommended Action",
+-                        interactive=False
+-                    )
+-
+-                    gr.Markdown("## Why was this transaction flagged?")
+-
+-                    explanation_output = gr.Textbox(
+-                        label="AI Investigation Summary",
+-                        lines=7,
+-                        interactive=False
+-                    )
+-
+-                    gr.Markdown("## SHAP Explanation")
+-
+-                    shap_output = gr.Plot(
+-                        label="SHAP Explanation"
+-                    )
+-
+-            gr.Markdown("---")
+-            gr.Markdown("## Behavioural Analysis")
+-
+-            with gr.Row():
+-
+-                with gr.Column():
+-
+-                    amount_deviation_output = gr.Markdown()
+-
+-                with gr.Column():
+-
+-                    recent_frequency_output = gr.Markdown()
+-
+-            behavior_summary_output = gr.Markdown()
+-
+-        # ==================================================
+-        # Model Performance Tab
+-        # ==================================================
+-        with gr.Tab("📈 Model Performance"):
+-
+-            gr.Markdown("## 📈 Production Model Performance")
+-
+-            with gr.Row():
+-
+-                with gr.Column():
+-
+-                    precision_box = gr.Textbox(
+-                        label="Precision",
+-                        value="0.999593",
+-                        interactive=False
+-                    )
+-
+-                    recall_box = gr.Textbox(
+-                        label="Recall",
+-                        value="0.996347",
+-                        interactive=False
+-                    )
+-
+-                    f1_box = gr.Textbox(
+-                        label="F1 Score",
+-                        value="0.997967",
+-                        interactive=False
+-                    )
+-
+-                with gr.Column():
+-
+-                    roc_box = gr.Textbox(
+-                        label="ROC-AUC",
+-                        value="0.998895",
+-                        interactive=False
+-                    )
+-
+-                    pr_box = gr.Textbox(
+-                        label="PR-AUC",
+-                        value="0.997170",
+-                        interactive=False
+-                    )
+-
+-                    accuracy_box = gr.Textbox(
+-                        label="Accuracy",
+-                        value="99.9988%",
+-                        interactive=False
+-                    )
+-
+-            gr.Markdown("---")
+-
+-            with gr.Row():
+-
+-                fp_box = gr.Textbox(
+-                    label="False Positives",
+-                    value="1",
+-                    interactive=False
+-                )
+-
+-                fn_box = gr.Textbox(
+-                    label="False Negatives",
+-                    value="9",
+-                    interactive=False
+-                )
+-
+-            gr.Markdown("---")
+-
+-            gr.Markdown("### ⚙️ Model Configuration")
+-
+-            with gr.Row():
+-
+-                algorithm_box = gr.Textbox(
+-                    label="Algorithm",
+-                    value="Random Forest",
+-                    interactive=False
+-                )
+-
+-                trees_box = gr.Textbox(
+-                    label="Decision Trees",
+-                    value="200",
+-                    interactive=False
+-                )
+-
+-                depth_box = gr.Textbox(
+-                    label="Maximum Depth",
+-                    value="10",
+-                    interactive=False
+-                )
+-
+-                smote_box = gr.Textbox(
+-                    label="SMOTE Ratio",
+-                    value="0.10",
+-                    interactive=False
+-                )
+-
+-
+-    ##############################
+-    # Event Bindings
+-    ##############################
+-
+-    analyze_btn.click(
+-        fn=gradio_predict,
+-        inputs=[
+-            transaction_id_input
+-        ],
+-        outputs=[
+-            prediction_output,
+-            probability_output,
+-            risk_output,
+-            action_output,
+-            explanation_output,
+-            shap_output,
+-            amount_deviation_output,
+-            recent_frequency_output,
+-            behavior_summary_output
+-        ]
+-    )
+-
+-    demo.launch(
+-    debug=True,
+-    share=True,
+-    server_port=7860
+-)
+diff --git a/df_graph.parquet b/df_graph.parquet
+deleted file mode 100644
+index 86e114b..0000000
+Binary files a/df_graph.parquet and /dev/null differ
+diff --git a/transaction_graph.pkl b/transaction_graph.pkl
+deleted file mode 100644
+index 8490182..0000000
+Binary files a/transaction_graph.pkl and /dev/null differ
+diff --git a/transaction_lookup.parquet b/transaction_lookup.parquet
+deleted file mode 100644
+index fb897c7..0000000
+Binary files a/transaction_lookup.parquet and /dev/null differ
